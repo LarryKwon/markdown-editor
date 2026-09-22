@@ -297,6 +297,11 @@
     border-radius:7px;padding:5px 9px;font-family:var(--font-mono);font-size:11.5px;
   }
   .notice.warn{background:var(--surface-2)}
+  .room-chip{
+    font-size:11px;padding:3px 9px;border-radius:999px;white-space:nowrap;
+    background:var(--surface-2);color:var(--muted);font-weight:500;
+  }
+  .room-chip[data-kind="private"]{background:var(--accent-soft);color:var(--accent-ink)}
   .foot-note{color:var(--muted)}
 </style>
 <script type="importmap">
@@ -321,6 +326,7 @@
     <span class="sync" id="sync" data-state="idle" role="status"><span class="dot"></span><span id="syncText">연결 중…</span></span>
     <span class="spacer"></span>
     <div class="people" id="people" aria-label="지금 함께 보고 있는 사람"></div>
+    <span class="room-chip" id="roomChip"></span>
     <button class="btn" id="shareBtn">공유 링크</button>
     <button class="btn btn-primary" id="newNote">새 노트</button>
   </header>
@@ -355,6 +361,7 @@
         <input class="share-link" id="shareLink" readonly hidden>
         <span class="spacer"></span>
         <button class="btn" id="noticeAction" hidden></button>
+        <button class="btn btn-quiet" id="noticeAlt" hidden></button>
         <button class="btn btn-quiet" id="noticeClose">닫기</button>
       </div>
 
@@ -390,22 +397,26 @@
 const SIGNALING = ["wss://y-webrtc-eu.fly.dev"];
 const PALETTE = ["#0E6B52","#2563A8","#8A5A2B","#7A3E9D","#A23529","#12776F","#5E6B1F"];
 const WELCOME = "# 함께 쓰는 마크다운 노트\n\n" +
-  "이 노트는 **같은 링크를 연 사람끼리** 실시간으로 함께 씁니다.\n" +
+  "**같은 주소를 연 사람끼리** 실시간으로 함께 쓰는 노트입니다.\n" +
   "가운데 서버가 없어서, 글은 브라우저끼리 직접 오갑니다.\n\n" +
-  "## 이렇게 쓰세요\n\n" +
-  "- 오른쪽 위 **공유 링크**를 복사해 같이 쓸 사람에게 보내세요.\n" +
-  "- 첫 줄이 그대로 노트 제목이 됩니다.\n" +
+  "## 같이 쓰기\n\n" +
+  "- 폰이든 다른 컴퓨터든 **이 주소를 그대로 열면** 같은 노트가 보입니다.\n" +
+  "- 상대가 접속하면 위쪽에 *동기화 중 · 나 포함 2명* 으로 바뀝니다.\n" +
   "- 같은 문장을 동시에 고쳐도 글자 단위로 합쳐집니다.\n\n" +
+  "## 방 두 가지\n\n" +
+  "- **공용 방**(그냥 이 주소): 주소를 아는 누구나 읽고 쓸 수 있습니다.\n" +
+  "- **비공개 방**: *공유 링크 → 새 비공개 방*. 그 링크를 가진 사람만 들어옵니다.\n\n" +
   "## 알아두실 점\n\n" +
-  "- **링크를 가진 사람은 누구나 읽고 쓸 수 있습니다.**\n" +
   "- 아무도 접속해 있지 않을 때의 변경은 각자 브라우저에 남았다가, 다시 만나면 합쳐집니다.\n" +
-  "- 그래서 처음 들어온 사람은 다른 사람이 접속할 때까지 내용이 비어 보일 수 있습니다.\n\n" +
+  "- 회사망이나 일부 통신망에서는 브라우저끼리 직접 연결이 막힐 수 있습니다.\n" +
+  "  그럴 때는 위쪽 표시가 *연결 안 됨* 으로 남습니다.\n\n" +
   "> 이 안내 노트는 지워도 됩니다.\n";
 
 const $ = (id) => document.getElementById(id);
 const app = $("app"), editor = $("editor"), preview = $("preview"), noteList = $("noteList");
 const syncEl = $("sync"), syncText = $("syncText"), docMeta = $("docMeta"), peopleEl = $("people");
 const notice = $("notice"), noticeText = $("noticeText"), noticeAction = $("noticeAction");
+const noticeAlt = $("noticeAlt"), roomChip = $("roomChip");
 const shareLink = $("shareLink"), panes = $("panes"), blank = $("blank");
 
 /* ── 방과 나 ─────────────────────────────────────────── */
@@ -417,12 +428,13 @@ function rand(n){
 }
 function readHash(){ return new URLSearchParams(location.hash.replace(/^#/, "")); }
 
-let params = readHash();
-let room = params.get("r"), roomKey = params.get("k");
-if (!room){
-  room = rand(12); roomKey = rand(18);
-  history.replaceState(null, "", "#r=" + room + "&k=" + roomKey);
-}
+// 주소만 열면 모두 같은 "공용 방"으로 들어간다 — 같은 주소 = 같은 노트.
+// 링크에 #r=..&k=.. 가 있으면 그 링크를 가진 사람만 들어오는 비공개 방이다.
+const PUBLIC_ROOM = "commons-v1";
+const params = readHash();
+const isPrivate = !!params.get("r");
+const room = isPrivate ? params.get("r") : PUBLIC_ROOM;
+const roomKey = isPrivate ? (params.get("k") || "") : PUBLIC_ROOM;
 
 function stored(key, fallback){
   try{ return localStorage.getItem(key) || fallback; }catch(e){ return fallback; }
@@ -500,8 +512,17 @@ function showNotice(text, actionLabel, onAction, opts){
     noticeAction.hidden = true;
     noticeAction.onclick = null;
   }
+  const alt = opts && opts.alt;
+  noticeAlt.hidden = !alt;
+  noticeAlt.textContent = alt ? alt.label : "";
+  noticeAlt.onclick = alt ? alt.fn : null;
 }
-function hideNotice(){ notice.hidden = true; noticeAction.onclick = null; }
+function hideNotice(){
+  notice.hidden = true;
+  noticeAction.onclick = null;
+  noticeAlt.hidden = true;
+  noticeAlt.onclick = null;
+}
 $("noticeClose").onclick = hideNotice;
 
 /* ── 저장소 1: 이 브라우저에만 (동기화 실패 시 대비) ── */
@@ -552,7 +573,8 @@ function createLocalStore(roomId){
     peers(){ return []; },
     onPeers(){},
     setPresence(){},
-    connected(){ return false; }
+    link(){ return { signaling:false, conns:0 }; },
+    reconnect(){}
   };
 }
 
@@ -568,17 +590,28 @@ async function createSharedStore(roomId, password){
   const provider = new WebrtcProvider("mdnotes-" + roomId, doc, {
     signaling: SIGNALING,
     password: password || undefined,
-    maxConns: 24
+    maxConns: 24,
+    peerOpts: { config: { iceServers: [{ urls: [
+      "stun:stun.l.google.com:19302",
+      "stun:global.stun.twilio.com:3478",
+      "stun:stun.cloudflare.com:3478"
+    ] }] } }
   });
   const ynotes = doc.getMap("notes");
 
   const subs = [], peerSubs = [];
+  const rebinders = new Set();
   let listTimer = null;
   const emit = () => {
     clearTimeout(listTimer);
     listTimer = setTimeout(() => subs.forEach((f) => f()), 120);
   };
-  ynotes.observeDeep(emit);
+  ynotes.observeDeep(() => {
+    // 두 기기가 서로 모르는 채로 같은 id의 노트를 만들면, 합쳐질 때 한쪽 객체가 버려진다.
+    // 버려진 객체를 붙들고 있으면 타이핑이 허공으로 들어간다 — 즉시 살아있는 쪽으로 다시 묶는다.
+    rebinders.forEach((fn) => fn());
+    emit();
+  });
 
   const awareness = provider.awareness;
   awareness.on("change", () => peerSubs.forEach((f) => f()));
@@ -638,14 +671,27 @@ async function createSharedStore(roomId, password){
       });
     },
     bind(id, onRemote){
-      const m = ynotes.get(id);
-      if (!m) return null;
-      const text = m.get("body");
+      const first = ynotes.get(id);
+      if (!first) return null;
+      let text = first.get("body");
+      if (!text) return null;
+      let live = true;
       const handler = (event, transaction) => {
         if (transaction.local) return;
         onRemote(text.toString());
       };
       text.observe(handler);
+      const rebind = () => {
+        if (!live) return;
+        const map = ynotes.get(id);
+        const next = map && map.get("body");
+        if (!next || next === text) return;
+        try{ text.unobserve(handler); }catch(e){}
+        text = next;
+        text.observe(handler);
+        onRemote(text.toString());
+      };
+      rebinders.add(rebind);
       return {
         text(){ return text.toString(); },
         write(value, who){
@@ -664,7 +710,11 @@ async function createSharedStore(roomId, password){
           });
           touch(id, who);
         },
-        release(){ text.unobserve(handler); }
+        release(){
+          live = false;
+          rebinders.delete(rebind);
+          try{ text.unobserve(handler); }catch(e){}
+        }
       };
     },
     peers(){
@@ -679,7 +729,20 @@ async function createSharedStore(roomId, password){
     setPresence(noteId){
       awareness.setLocalStateField("user", { name: me.name, color: me.color, note: noteId || null });
     },
-    connected(){ return !!(provider.connected && provider.room); }
+    // provider.connected는 "피어를 찾는 중"이라는 뜻일 뿐 연결 여부가 아니다.
+    // 신호 서버 연결과 실제 피어 수를 직접 읽는다.
+    link(){
+      let signaling = false, conns = 0;
+      try{ signaling = provider.signalingConns.some((c) => c && c.connected); }catch(e){}
+      try{
+        if (provider.room) conns = provider.room.webrtcConns.size + provider.room.bcConns.size;
+      }catch(e){}
+      return { signaling, conns };
+    },
+    reconnect(){
+      // 휴대폰이 화면을 껐다 켜면 연결이 끊겨 있을 수 있다. 중복 연결은 만들지 않는다.
+      try{ if (!provider.shouldConnect) provider.connect(); }catch(e){}
+    }
   };
 }
 
@@ -778,14 +841,23 @@ function renderPeople(){
 }
 
 function renderStatus(){
+  roomChip.textContent = isPrivate ? "비공개 방" : "공용 방";
+  roomChip.setAttribute("data-kind", isPrivate ? "private" : "public");
+  roomChip.title = isPrivate
+    ? "이 링크를 가진 사람만 들어올 수 있는 방입니다."
+    : "이 주소를 여는 사람은 모두 같은 노트를 봅니다.";
+
   if (state.mode !== "shared"){
     setSync("local", "이 브라우저에만 저장됨");
     return;
   }
   const n = state.peers.length;
-  if (n > 0) setSync("saved", "동기화 중 · 나 포함 " + (n + 1) + "명");
-  else if (repo.connected()) setSync("saving", "혼자 편집 중 · 링크를 공유하세요");
-  else setSync("local", "연결 대기 중 · 변경 내용은 보관됩니다");
+  if (n > 0){ setSync("saved", "동기화 중 · 나 포함 " + (n + 1) + "명"); return; }
+  const info = repo.link ? repo.link() : { signaling:false, conns:0 };
+  if (!info.signaling){ setSync("error", "연결 안 됨 · 변경 내용은 보관됩니다"); return; }
+  setSync("saving", isPrivate
+    ? "접속자 나 혼자 · 링크를 공유하세요"
+    : "접속자 나 혼자 · 같은 주소를 열면 함께 편집됩니다");
 }
 
 function renderBlankState(){
@@ -915,9 +987,19 @@ $("nameInput").addEventListener("input", (e) => {
   repo.setPresence(state.currentId);
 });
 
+function newPrivateRoom(){
+  const ok = window.confirm("나만 아는 링크로 새 방을 만듭니다.\n\n지금 방의 노트는 그대로 남고, 새 방은 비어 있습니다.\n새 주소를 상대에게 보내야 같이 쓸 수 있습니다.");
+  if (!ok) return;
+  location.hash = "r=" + rand(12) + "&k=" + rand(18);
+  location.reload();
+}
+
 $("shareBtn").onclick = () => {
   const url = location.href;
-  showNotice("이 링크를 가진 사람은 누구나 이 노트를 읽고 쓸 수 있습니다.", "복사", async () => {
+  const message = isPrivate
+    ? "이 링크를 가진 사람만 이 방의 노트를 보고 고칠 수 있습니다."
+    : "이 주소를 여는 사람은 누구나 같은 노트를 보고 함께 고칩니다. 둘이서만 쓰려면 새 비공개 방을 만드세요.";
+  showNotice(message, "복사", async () => {
     try{
       await navigator.clipboard.writeText(url);
       noticeAction.textContent = "복사됨";
@@ -926,12 +1008,19 @@ $("shareBtn").onclick = () => {
       shareLink.select();
       noticeAction.textContent = "직접 복사하세요";
     }
-  }, { link:url, warn:true });
+  }, { link:url, warn:true, alt: isPrivate ? null : { label:"새 비공개 방", fn:newPrivateRoom } });
   shareLink.focus();
   shareLink.select();
 };
 
-setInterval(() => { renderList(); renderMeta(); renderStatus(); }, 30000);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  if (repo.reconnect) repo.reconnect();
+  renderStatus();
+});
+
+setInterval(renderStatus, 3000);
+setInterval(() => { renderList(); renderMeta(); }, 60000);
 
 let savedView = stored("mdp-view", "split");
 if (window.matchMedia("(max-width:880px)").matches && savedView === "split") savedView = "edit";
@@ -969,10 +1058,18 @@ setSync("idle", "연결 중…");
   ]);
 
   // 저장된 문서가 도착한 뒤, 그래도 비어 있으면 안내 노트를 만든다.
-  setTimeout(() => {
-    if (repo.seedWelcome) repo.seedWelcome(WELCOME);
-    applyNotes();
-  }, 2500);
+  // 신호 서버에 닿을 때까지(최대 6초) 기다린 뒤, 피어와 문서를 주고받을 여유를 더 준다.
+  // 먼저 안내 노트를 만들어 버리면, 뒤늦게 만난 상대의 같은 노트와 충돌한다.
+  for (let i = 0; i < 12; i++){
+    const info = repo.link();
+    if (info.signaling || info.conns > 0 || repo.notes().length > 0) break;
+    await new Promise((next) => setTimeout(next, 500));
+  }
+  await new Promise((next) => setTimeout(next, 1800));
+  if (repo.seedWelcome && repo.link().conns === 0 && repo.notes().length === 0){
+    repo.seedWelcome(WELCOME);
+  }
+  applyNotes();
 
   applyNotes();
   renderStatus();
