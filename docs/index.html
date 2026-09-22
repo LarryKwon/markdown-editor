@@ -962,7 +962,11 @@ setSync("idle", "연결 중…");
   repo.onPeers(() => { state.peers = repo.peers(); renderPeople(); renderList(); renderStatus(); });
   repo.setPresence(state.currentId);
 
-  try{ await repo.ready; }catch(e){}
+  // IndexedDB가 막힌 브라우저에서는 whenSynced가 끝나지 않는다. 기다리되, 붙잡히지는 않는다.
+  await Promise.race([
+    Promise.resolve(repo.ready).catch(() => {}),
+    new Promise((done) => setTimeout(done, 2000))
+  ]);
 
   // 저장된 문서가 도착한 뒤, 그래도 비어 있으면 안내 노트를 만든다.
   setTimeout(() => {
