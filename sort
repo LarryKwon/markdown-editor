@@ -1,0 +1,52 @@
+### bubble sort
+- 앞에서부터 돌면서 인접한 것끼리 자리 바꾸기. 결국 맨 뒷자리부터 결정하는 방식, O(N^2)
+select sort
+- 첫째자리, 둘째자리에 맞는 각자리 숫자를 O(n(n-1)) 만큼 돌면서 찾기
+- stable 하지 않음
+- 기존에 있는 숫자를 고려하지 않고, 그냥 현재 번째의 숫자를 찾아서 바꿔주기 때문임.
+삽입 정렬
+- 지금 보고 있는 index 앞 쪽은 다 정렬되어있다고 가정하고 현재 index 의 값을 앞에 있는 애들 중에 적절한 곳에 넣기. O(n^2)
+- 앞에 적절한 곳 넣을 때는 앞에꺼 하나씩 비교하면서 뒤로 밀면서 적절하게 넣기.
+퀵정렬
+- stable 하지 않음
+- pivot을 정하고 작은 것과 큰 것들의 경계를 분리해냄.
+- i,j를 세팅하는데 j를 하나씩 늘리면서 pivot 보다 작으면 왼쪽으로 옮김. 그리고 그 경계를 표시하기 위해 i를 표시함.
+
+### Lower bound, upper bound
+특정 타겟 값이 어디서부터 어디까지 분포해있는지를 찾기 위함이다.
+x가 위치하는 구간 [a,b) 일 때, a랑 b를 찾는 거임.
+x가 target 값임. a랑 b를 찾는 것이 목표이고, a = lower bound, b = upper bound
+lower bound (크거나 같은 애들 중에 최소)
+- x의 lower bound를 찾는다! x에 대해  하한.
+- 이진 탐색을 진행함.
+  - mid에 대해서 target보다 크거나 같다면
+    - mid 기준 왼쪽이 지금 추가로 탐색할 필요가 있는 영역 => right = mid -1 로 줄임
+    - 이 때 min_idx 값을 세팅해야하는데, min_idx 값을 최초에 len(arr)로 잡고 줄여나가면 됨. min으로
+  - mid에 대해서 target보다 작다면
+    - mid 기준 오른쪽으로 가야한다. left = mid + 1
+
+upper bound(초과하는 애들 중에 최소)
+- 초과하는 애들 중에 최소
+- x의 upper bound를 찾는다! x에 대해 상한.
+- 이진 탐색 진행
+  - mid 에 대해서 target보다 크다면
+    - mid 기준 왼쪽이 지금 추가로 탐색할 필요가 있는 영역 => right= mid - 1
+    - 이 때 min_idx = min(min_idx, mid)로 해야함.
+  - mid에 대해서 target보다 작거나 같다면
+    - mid 기준 오른쪽이 지금 추가로 탐색해야하는 영역 => left = mid + 1
+
+custom bound
+- parametric search이다.
+- 조건에 대한 일반화
+- check(mid)임.
+- custom bound에 대해서도 아래 닫힘을 찾으려면 check(mid)가 True인 경우 왼쪽을 더 탐색해야함.
+  - 따라서 if check(mid): right = mid -1
+- 위쪽 열린 닫힘을 찾으려면 check(mid)가 True인 경우 오른쪽을 더 탐색해야함.
+  - 따라서 if check(mid): left = mid + 1
+- 지금 코드 트리 상 정의로는 target보다 같거나 작은 숫자들이 있는 위치 중 가장 큰 것.
+  - 같은 숫자를 만났을 때, 오른쪽을 탐색해야함.
+    - if arr[mid] > target:
+      - right = mid - 1
+    - else:
+      - left = mid + 1
+      - max_idx = max(max_idx, mid)
