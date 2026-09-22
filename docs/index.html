@@ -1,0 +1,979 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>마크다운 노트</title>
+<meta name="description" content="링크를 아는 사람끼리 실시간으로 함께 쓰는 마크다운 노트. 서버 없이 브라우저끼리 직접 동기화합니다.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230E6B52'/%3E%3Ctext x='16' y='21' font-family='monospace' font-size='12' fill='white' text-anchor='middle'%3EMD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+    --ground:#F1F4F1;
+    --surface:#FFFFFF;
+    --surface-2:#E7EDE8;
+    --line:#D6DED8;
+    --line-soft:#E4EAE5;
+    --ink:#141D1A;
+    --muted:#647069;
+    --accent:#0E6B52;
+    --accent-ink:#0B5240;
+    --accent-soft:#DAEDE4;
+    --danger:#A23529;
+    --shadow:0 1px 2px rgba(20,29,26,.06), 0 8px 24px rgba(20,29,26,.05);
+    --font-ui:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+    --font-mono:"JetBrains Mono","IBM Plex Sans KR",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0E1412;
+      --surface:#151B19;
+      --surface-2:#1D2523;
+      --line:#2A3431;
+      --line-soft:#212B28;
+      --ink:#E5ECE8;
+      --muted:#8E9D96;
+      --accent:#5FD3AC;
+      --accent-ink:#8AE3C6;
+      --accent-soft:#16302A;
+      --danger:#F0958A;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0E1412;
+    --surface:#151B19;
+    --surface-2:#1D2523;
+    --line:#2A3431;
+    --line-soft:#212B28;
+    --ink:#E5ECE8;
+    --muted:#8E9D96;
+    --accent:#5FD3AC;
+    --accent-ink:#8AE3C6;
+    --accent-soft:#16302A;
+    --danger:#F0958A;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px rgba(0,0,0,.35);
+  }
+
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--ground);color:var(--ink);
+    font-family:var(--font-ui);font-size:15px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  *{box-sizing:border-box}
+  button,input,textarea{font:inherit;color:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+  .app{height:100%;display:flex;flex-direction:column;min-height:0}
+
+  /* ── top bar ───────────────────────────────────────────── */
+  .topbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding-block:10px;padding-inline:16px;
+    background:var(--surface);border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:9px;margin-right:2px}
+  .mark{
+    width:26px;height:26px;border-radius:7px;background:var(--accent);
+    color:var(--surface);display:grid;place-items:center;
+    font-family:var(--font-mono);font-size:11px;font-weight:500;letter-spacing:.02em;
+  }
+  .brand h1{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em;white-space:nowrap}
+  .sync{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:12px;color:var(--muted);white-space:nowrap;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+  .sync[data-state="saved"] .dot{background:var(--accent)}
+  .sync[data-state="saving"] .dot{background:var(--accent);animation:pulse 1.1s ease-in-out infinite}
+  .sync[data-state="error"] .dot{background:var(--danger)}
+  .sync[data-state="local"] .dot{background:var(--muted)}
+  @keyframes pulse{50%{opacity:.25}}
+  @media (prefers-reduced-motion:reduce){.sync .dot{animation:none}}
+  .spacer{flex:1 1 auto}
+
+  .people{display:flex;align-items:center;gap:0}
+  .people .av{
+    width:26px;height:26px;border-radius:50%;object-fit:cover;
+    border:2px solid var(--surface);margin-left:-7px;background:var(--surface-2);
+  }
+  .people .av:first-child{margin-left:0}
+  .people .more{
+    font-size:11px;color:var(--muted);margin-left:6px;font-variant-numeric:tabular-nums;
+  }
+
+  .btn{
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);
+    border-radius:8px;padding:6px 12px;font-size:13px;font-weight:500;
+    transition:background .12s ease,border-color .12s ease;
+  }
+  .btn:hover{background:var(--surface-2)}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  :root[data-theme="dark"] .btn-primary{color:#07100D}
+  .btn-primary:hover{background:var(--accent-ink);border-color:var(--accent-ink)}
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]) .btn-primary{color:#07100D}
+    :root:not([data-theme="light"]) .mark{color:#07100D}
+  }
+  .btn-quiet{border-color:transparent;background:transparent;color:var(--muted)}
+  .btn-quiet:hover{background:var(--surface-2);color:var(--ink)}
+  .btn-danger:hover{color:var(--danger)}
+
+  /* ── shell ─────────────────────────────────────────────── */
+  .shell{flex:1;min-height:0;display:grid;grid-template-columns:288px minmax(0,1fr)}
+
+  .sidebar{
+    background:var(--surface);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  .search-row{padding:12px 16px;border-bottom:1px solid var(--line-soft)}
+  .search{
+    width:100%;border:1px solid var(--line);background:var(--ground);
+    border-radius:8px;padding:7px 11px;font-size:13px;
+  }
+  .search::placeholder{color:var(--muted)}
+  .list{list-style:none;margin:0;padding:8px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:2px}
+  .item{
+    width:100%;text-align:left;border:1px solid transparent;background:transparent;
+    border-radius:9px;padding:10px 11px;display:grid;gap:3px;
+  }
+  .item:hover{background:var(--surface-2)}
+  .item[aria-current="true"]{background:var(--accent-soft);border-color:var(--accent-soft)}
+  .item-top{display:flex;align-items:baseline;gap:8px}
+  .item-title{
+    font-size:13.5px;font-weight:500;flex:1;min-width:0;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .item-time{font-size:11px;color:var(--muted);flex:none;font-variant-numeric:tabular-nums}
+  .item-snip{
+    font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .item-here{
+    display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--accent-ink);
+    font-weight:500;
+  }
+  .item-here::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .empty-list{padding:28px 16px;color:var(--muted);font-size:13px;text-align:center}
+
+  /* ── editor area ───────────────────────────────────────── */
+  .editor-area{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--surface)}
+  .doc-head{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding-block:9px;padding-inline:16px;border-bottom:1px solid var(--line-soft);
+  }
+  .doc-meta{font-size:12px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .seg{display:inline-flex;background:var(--surface-2);border-radius:8px;padding:2px;gap:2px}
+  .seg button{
+    border:0;background:transparent;border-radius:6px;padding:4px 10px;
+    font-size:12.5px;color:var(--muted);font-weight:500;
+  }
+  .seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  .notice{
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding-block:8px;padding-inline:16px;
+    background:var(--accent-soft);border-bottom:1px solid var(--line-soft);
+    font-size:12.5px;
+  }
+
+  .panes{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr}
+  .pane{min-width:0;min-height:0;display:flex;flex-direction:column}
+  .pane-preview{border-left:1px solid var(--line-soft);overflow-y:auto;background:var(--ground)}
+  #editor{
+    flex:1;width:100%;border:0;resize:none;background:var(--surface);
+    padding:20px 18px;font-family:var(--font-mono);font-size:14px;line-height:1.75;
+    tab-size:2;
+  }
+  #editor:focus{outline:none}
+  #editor[readonly]{color:var(--muted)}
+  .pane-foot{
+    display:flex;gap:14px;padding-block:6px;padding-inline:18px;
+    border-top:1px solid var(--line-soft);font-size:11.5px;color:var(--muted);
+    font-variant-numeric:tabular-nums;
+  }
+  [data-view="edit"] .pane-preview{display:none}
+  [data-view="edit"] .panes{grid-template-columns:minmax(0,1fr)}
+  [data-view="preview"] .pane-edit{display:none}
+  [data-view="preview"] .panes{grid-template-columns:minmax(0,1fr)}
+
+  .blank{
+    flex:1;display:grid;place-items:center;padding:32px 16px;text-align:center;color:var(--muted);
+  }
+  .blank>div{max-width:min(34ch,100%)}
+  .blank p{margin:0 0 16px}
+
+  /* ── markdown preview ──────────────────────────────────── */
+  .md{padding:22px 24px;max-width:70ch}
+  .md>:first-child{margin-top:0}
+  .md h1,.md h2,.md h3,.md h4{line-height:1.3;text-wrap:balance;margin:1.6em 0 .5em;font-weight:600;letter-spacing:-.015em}
+  .md h1{font-size:1.65rem;padding-bottom:.3em;border-bottom:1px solid var(--line)}
+  .md h2{font-size:1.3rem}
+  .md h3{font-size:1.1rem}
+  .md h4{font-size:1rem;color:var(--muted)}
+  .md p,.md ul,.md ol,.md blockquote,.md table{margin:0 0 1em}
+  .md ul,.md ol{padding-left:1.35em}
+  .md li{margin:.25em 0}
+  .md li::marker{color:var(--accent)}
+  .md a{color:var(--accent-ink);text-underline-offset:2px}
+  .md strong{font-weight:600}
+  .md blockquote{
+    border-left:3px solid var(--accent);padding:2px 0 2px 14px;color:var(--muted);
+  }
+  .md code{
+    font-family:var(--font-mono);font-size:.86em;background:var(--surface-2);
+    padding:.12em .38em;border-radius:5px;
+  }
+  .md pre{
+    background:var(--surface-2);border:1px solid var(--line-soft);border-radius:10px;
+    padding:13px 15px;overflow-x:auto;margin:0 0 1em;
+  }
+  .md pre code{background:none;padding:0;font-size:.85em;line-height:1.7}
+  .md hr{border:0;border-top:1px solid var(--line);margin:1.8em 0}
+  .md table{border-collapse:collapse;font-size:.92em;display:block;overflow-x:auto;max-width:100%}
+  .md th,.md td{border:1px solid var(--line);padding:6px 11px;text-align:left}
+  .md th{background:var(--surface-2);font-weight:600}
+  .md img{max-width:100%;border-radius:8px}
+  .md input[type="checkbox"]{accent-color:var(--accent);margin-right:.4em}
+  .md .fallback{white-space:pre-wrap;font-family:var(--font-mono);font-size:.86em}
+
+  .only-narrow{display:none}
+  .scrim{display:none}
+
+  @media (max-width:880px){
+    .shell{grid-template-columns:minmax(0,1fr)}
+    .sidebar{
+      position:fixed;z-index:20;inset:0 auto 0 0;width:min(84vw,300px);
+      box-shadow:var(--shadow);transform:translateX(-102%);
+      transition:transform .18s ease;padding-top:env(safe-area-inset-top,0px);
+    }
+    .app[data-list="open"] .sidebar{transform:none}
+    .app[data-list="open"] .scrim{
+      display:block;position:fixed;inset:0;z-index:15;background:rgba(10,16,14,.4);border:0;
+    }
+    .only-narrow{display:inline-flex}
+    .topbar{gap:10px}
+    .sync{order:9;flex:1 1 100%;font-size:11.5px}
+    .brand h1{font-size:14px}
+    .no-narrow{display:none}
+    .panes{grid-template-columns:minmax(0,1fr)}
+    .md{padding:18px 16px}
+    #editor{padding:16px}
+  }
+  @media (prefers-reduced-motion:reduce){.sidebar{transition:none}}
+</style>
+<style>
+  :root{
+    color-scheme:light dark;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  html{box-sizing:border-box}
+  [hidden]{display:none!important}
+  img{max-width:100%}
+
+  .chip{
+    width:26px;height:26px;border-radius:50%;margin-left:-7px;
+    border:2px solid var(--surface);display:grid;place-items:center;
+    font-size:11px;font-weight:600;color:#fff;flex:none;
+  }
+  .chip:first-child{margin-left:0}
+  .chip[data-here="true"]{box-shadow:0 0 0 2px var(--accent)}
+
+  .side-foot{
+    border-top:1px solid var(--line-soft);padding:10px 16px;
+    display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);
+  }
+  .side-foot input{
+    flex:1;min-width:0;border:1px solid var(--line);background:var(--ground);
+    border-radius:7px;padding:5px 9px;font-size:12.5px;
+  }
+
+  .share-link{
+    flex:1;min-width:140px;border:1px solid var(--line);background:var(--surface);
+    border-radius:7px;padding:5px 9px;font-family:var(--font-mono);font-size:11.5px;
+  }
+  .notice.warn{background:var(--surface-2)}
+  .foot-note{color:var(--muted)}
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "yjs": "https://esm.sh/yjs@13.6.32",
+    "y-webrtc": "https://esm.sh/y-webrtc@10.3.0?external=yjs",
+    "y-indexeddb": "https://esm.sh/y-indexeddb@9.0.12?external=yjs"
+  }
+}
+</script>
+</head>
+<body>
+
+<div class="app" id="app" data-view="split" data-list="closed">
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">MD</span>
+      <h1>마크다운 노트</h1>
+    </div>
+    <button class="btn only-narrow" id="listToggle" aria-expanded="false">노트 목록</button>
+    <span class="sync" id="sync" data-state="idle" role="status"><span class="dot"></span><span id="syncText">연결 중…</span></span>
+    <span class="spacer"></span>
+    <div class="people" id="people" aria-label="지금 함께 보고 있는 사람"></div>
+    <button class="btn" id="shareBtn">공유 링크</button>
+    <button class="btn btn-primary" id="newNote">새 노트</button>
+  </header>
+
+  <div class="shell">
+    <button class="scrim" id="scrim" aria-label="목록 닫기"></button>
+    <aside class="sidebar" id="sidebar" aria-label="노트 목록">
+      <div class="search-row">
+        <input class="search" id="search" type="search" placeholder="노트 검색" autocomplete="off">
+      </div>
+      <ul class="list" id="noteList"></ul>
+      <div class="side-foot">
+        <label for="nameInput">내 이름</label>
+        <input id="nameInput" type="text" maxlength="20" placeholder="익명" autocomplete="off">
+      </div>
+    </aside>
+
+    <section class="editor-area">
+      <div class="doc-head">
+        <span class="doc-meta" id="docMeta"></span>
+        <span class="spacer"></span>
+        <div class="seg" id="viewSeg" role="group" aria-label="보기 방식">
+          <button data-view="edit" aria-pressed="false">편집</button>
+          <button data-view="split" aria-pressed="true" class="no-narrow">분할</button>
+          <button data-view="preview" aria-pressed="false">미리보기</button>
+        </div>
+        <button class="btn btn-quiet btn-danger" id="deleteNote">삭제</button>
+      </div>
+
+      <div class="notice" id="notice" hidden>
+        <span id="noticeText"></span>
+        <input class="share-link" id="shareLink" readonly hidden>
+        <span class="spacer"></span>
+        <button class="btn" id="noticeAction" hidden></button>
+        <button class="btn btn-quiet" id="noticeClose">닫기</button>
+      </div>
+
+      <div class="panes" id="panes">
+        <div class="pane pane-edit">
+          <textarea id="editor" spellcheck="false" placeholder="# 제목&#10;&#10;여기에 마크다운으로 적어 보세요." aria-label="마크다운 편집기"></textarea>
+          <div class="pane-foot">
+            <span id="charCount">0자</span><span id="lineCount">1줄</span>
+            <span class="foot-note" id="saveHint">자동 저장</span>
+          </div>
+        </div>
+        <div class="pane pane-preview">
+          <article class="md" id="preview"></article>
+        </div>
+      </div>
+
+      <div class="blank" id="blank" hidden>
+        <div>
+          <p>아직 노트가 없습니다. 새 노트를 만들고 <strong>공유 링크</strong>를 보내면, 링크를 연 사람과 실시간으로 같이 쓸 수 있습니다.</p>
+          <button class="btn btn-primary" id="blankNew">첫 노트 만들기</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<script type="module">
+/* 마크다운 노트 — 서버 없이 브라우저끼리(WebRTC) 동기화하는 공유 노트.
+   같은 링크(#r=방&k=열쇠)를 연 사람끼리 하나의 Yjs 문서를 공유한다.       */
+
+const SIGNALING = ["wss://y-webrtc-eu.fly.dev"];
+const PALETTE = ["#0E6B52","#2563A8","#8A5A2B","#7A3E9D","#A23529","#12776F","#5E6B1F"];
+const WELCOME = "# 함께 쓰는 마크다운 노트\n\n" +
+  "이 노트는 **같은 링크를 연 사람끼리** 실시간으로 함께 씁니다.\n" +
+  "가운데 서버가 없어서, 글은 브라우저끼리 직접 오갑니다.\n\n" +
+  "## 이렇게 쓰세요\n\n" +
+  "- 오른쪽 위 **공유 링크**를 복사해 같이 쓸 사람에게 보내세요.\n" +
+  "- 첫 줄이 그대로 노트 제목이 됩니다.\n" +
+  "- 같은 문장을 동시에 고쳐도 글자 단위로 합쳐집니다.\n\n" +
+  "## 알아두실 점\n\n" +
+  "- **링크를 가진 사람은 누구나 읽고 쓸 수 있습니다.**\n" +
+  "- 아무도 접속해 있지 않을 때의 변경은 각자 브라우저에 남았다가, 다시 만나면 합쳐집니다.\n" +
+  "- 그래서 처음 들어온 사람은 다른 사람이 접속할 때까지 내용이 비어 보일 수 있습니다.\n\n" +
+  "> 이 안내 노트는 지워도 됩니다.\n";
+
+const $ = (id) => document.getElementById(id);
+const app = $("app"), editor = $("editor"), preview = $("preview"), noteList = $("noteList");
+const syncEl = $("sync"), syncText = $("syncText"), docMeta = $("docMeta"), peopleEl = $("people");
+const notice = $("notice"), noticeText = $("noticeText"), noticeAction = $("noticeAction");
+const shareLink = $("shareLink"), panes = $("panes"), blank = $("blank");
+
+/* ── 방과 나 ─────────────────────────────────────────── */
+
+function rand(n){
+  const bytes = new Uint8Array(n); crypto.getRandomValues(bytes);
+  const alphabet = "abcdefghijkmnpqrstuvwxyz23456789";
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+function readHash(){ return new URLSearchParams(location.hash.replace(/^#/, "")); }
+
+let params = readHash();
+let room = params.get("r"), roomKey = params.get("k");
+if (!room){
+  room = rand(12); roomKey = rand(18);
+  history.replaceState(null, "", "#r=" + room + "&k=" + roomKey);
+}
+
+function stored(key, fallback){
+  try{ return localStorage.getItem(key) || fallback; }catch(e){ return fallback; }
+}
+function store(key, value){ try{ localStorage.setItem(key, value); }catch(e){} }
+
+const me = {
+  name: stored("mdp-name", ""),
+  color: stored("mdp-color", "") || PALETTE[Math.floor(Math.random() * PALETTE.length)]
+};
+store("mdp-color", me.color);
+$("nameInput").value = me.name;
+
+const state = {
+  notes: [], currentId: null, filter: "", peers: [], mode: "local", connected: false
+};
+
+/* ── 공용 도구 ───────────────────────────────────────── */
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function renderMarkdown(src){
+  const text = src || "";
+  try{
+    if (window.marked && window.DOMPurify){
+      const html = window.marked.parse(text, { gfm:true, breaks:true, headerIds:false, mangle:false });
+      return window.DOMPurify.sanitize(html, { USE_PROFILES:{ html:true } });
+    }
+  }catch(e){}
+  return '<pre class="fallback">' + escapeHtml(text) + "</pre>";
+}
+function deriveTitle(text){
+  const lines = String(text || "").split("\n");
+  for (const raw of lines){
+    const line = raw.replace(/^\s*#{1,6}\s*/, "").replace(/[*_`>#-]/g, "").trim();
+    if (line) return line.slice(0, 70);
+  }
+  return "제목 없는 노트";
+}
+function snippetOf(body){
+  const lines = String(body || "").split("\n");
+  let first = -1;
+  for (let i = 0; i < lines.length; i++){ if (lines[i].trim()){ first = i; break; } }
+  const rest = lines.slice(first + 1).join(" ").replace(/[#*_`>|-]/g, " ").replace(/\s+/g, " ").trim();
+  return rest || "내용 없음";
+}
+function relTime(ts){
+  if (!ts) return "";
+  const diff = Date.now() - ts;
+  if (diff < 45000) return "방금";
+  if (diff < 3600000) return Math.round(diff / 60000) + "분 전";
+  if (diff < 86400000) return Math.round(diff / 3600000) + "시간 전";
+  const d = new Date(ts);
+  return (d.getMonth() + 1) + "월 " + d.getDate() + "일";
+}
+function newId(){ return "n" + Date.now().toString(36) + "-" + rand(5); }
+function initials(name){ return (name || "익").trim().slice(0, 2); }
+
+function setSync(kind, text){
+  syncEl.setAttribute("data-state", kind);
+  syncText.textContent = text;
+}
+function showNotice(text, actionLabel, onAction, opts){
+  noticeText.textContent = text;
+  notice.hidden = false;
+  notice.classList.toggle("warn", !!(opts && opts.warn));
+  shareLink.hidden = !(opts && opts.link);
+  if (opts && opts.link){ shareLink.value = opts.link; }
+  if (actionLabel){
+    noticeAction.hidden = false;
+    noticeAction.textContent = actionLabel;
+    noticeAction.onclick = onAction;
+  } else {
+    noticeAction.hidden = true;
+    noticeAction.onclick = null;
+  }
+}
+function hideNotice(){ notice.hidden = true; noticeAction.onclick = null; }
+$("noticeClose").onclick = hideNotice;
+
+/* ── 저장소 1: 이 브라우저에만 (동기화 실패 시 대비) ── */
+
+function createLocalStore(roomId){
+  const KEY = "mdp-notes-" + roomId;
+  const subs = [];
+  let cache = [];
+  try{ cache = JSON.parse(localStorage.getItem(KEY) || "[]") || []; }catch(e){ cache = []; }
+  let bound = null, saveTimer = null;
+
+  const emit = () => subs.forEach((f) => f());
+  const persist = () => { try{ localStorage.setItem(KEY, JSON.stringify(cache)); }catch(e){} };
+
+  window.addEventListener("storage", (e) => {
+    if (e.key !== KEY) return;
+    try{ cache = JSON.parse(e.newValue || "[]") || []; }catch(err){ return; }
+    emit();
+    if (bound){
+      const note = cache.find((n) => n.id === bound.id);
+      if (note) bound.onRemote(note.body || "");
+    }
+  });
+
+  return {
+    kind: "local",
+    onChange(cb){ subs.push(cb); },
+    notes(){ return cache.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); },
+    create(id, body, who){
+      cache.push({ id, body: body || "", updatedAt: Date.now(), updatedBy: who || "" });
+      persist(); emit();
+    },
+    remove(id){ cache = cache.filter((n) => n.id !== id); persist(); emit(); },
+    bind(id, onRemote){
+      bound = { id, onRemote };
+      return {
+        text(){ const n = cache.find((x) => x.id === id); return n ? n.body : ""; },
+        write(value, who){
+          const note = cache.find((x) => x.id === id);
+          if (!note) return;
+          note.body = value; note.updatedAt = Date.now(); note.updatedBy = who || "";
+          clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => { persist(); emit(); }, 500);
+        },
+        release(){ bound = null; clearTimeout(saveTimer); persist(); }
+      };
+    },
+    peers(){ return []; },
+    onPeers(){},
+    setPresence(){},
+    connected(){ return false; }
+  };
+}
+
+/* ── 저장소 2: Yjs + WebRTC로 서로 동기화 ────────────── */
+
+async function createSharedStore(roomId, password){
+  const Y = await import("yjs");
+  const { WebrtcProvider } = await import("y-webrtc");
+  const { IndexeddbPersistence } = await import("y-indexeddb");
+
+  const doc = new Y.Doc();
+  const idb = new IndexeddbPersistence("mdnotes-" + roomId, doc);
+  const provider = new WebrtcProvider("mdnotes-" + roomId, doc, {
+    signaling: SIGNALING,
+    password: password || undefined,
+    maxConns: 24
+  });
+  const ynotes = doc.getMap("notes");
+
+  const subs = [], peerSubs = [];
+  let listTimer = null;
+  const emit = () => {
+    clearTimeout(listTimer);
+    listTimer = setTimeout(() => subs.forEach((f) => f()), 120);
+  };
+  ynotes.observeDeep(emit);
+
+  const awareness = provider.awareness;
+  awareness.on("change", () => peerSubs.forEach((f) => f()));
+  provider.on("peers", () => peerSubs.forEach((f) => f()));
+
+  let touchTimer = null;
+  function touch(id, who){
+    clearTimeout(touchTimer);
+    touchTimer = setTimeout(() => {
+      const m = ynotes.get(id);
+      if (!m) return;
+      m.set("updatedAt", Date.now());
+      m.set("updatedBy", who || "");
+    }, 800);
+  }
+
+  return {
+    kind: "shared",
+    ready: idb.whenSynced,
+    onChange(cb){ subs.push(cb); },
+    notes(){
+      const out = [];
+      ynotes.forEach((m, id) => {
+        const body = m.get("body");
+        out.push({
+          id,
+          body: body && body.toString ? body.toString() : "",
+          updatedAt: m.get("updatedAt") || 0,
+          updatedBy: m.get("updatedBy") || ""
+        });
+      });
+      return out.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    },
+    create(id, body, who){
+      doc.transact(() => {
+        const m = new Y.Map();
+        ynotes.set(id, m);
+        m.set("body", new Y.Text(body || ""));
+        m.set("createdAt", Date.now());
+        m.set("updatedAt", Date.now());
+        m.set("updatedBy", who || "");
+      });
+    },
+    remove(id){ ynotes.delete(id); },
+    seedWelcome(body){
+      // 안내 노트는 이 방에서 딱 한 번만. 지운 뒤 새로고침해도 되살아나지 않는다.
+      const meta = doc.getMap("meta");
+      if (meta.get("seeded") || ynotes.size > 0) return;
+      doc.transact(() => {
+        meta.set("seeded", true);
+        const m = new Y.Map();
+        ynotes.set("welcome", m);
+        m.set("body", new Y.Text(body));
+        m.set("createdAt", Date.now());
+        m.set("updatedAt", Date.now());
+        m.set("updatedBy", "");
+      });
+    },
+    bind(id, onRemote){
+      const m = ynotes.get(id);
+      if (!m) return null;
+      const text = m.get("body");
+      const handler = (event, transaction) => {
+        if (transaction.local) return;
+        onRemote(text.toString());
+      };
+      text.observe(handler);
+      return {
+        text(){ return text.toString(); },
+        write(value, who){
+          const cur = text.toString();
+          if (cur === value) return;
+          const min = Math.min(cur.length, value.length);
+          let head = 0;
+          while (head < min && cur[head] === value[head]) head++;
+          let tail = 0;
+          while (tail < min - head && cur[cur.length - 1 - tail] === value[value.length - 1 - tail]) tail++;
+          doc.transact(() => {
+            const removed = cur.length - head - tail;
+            if (removed > 0) text.delete(head, removed);
+            const added = value.slice(head, value.length - tail);
+            if (added) text.insert(head, added);
+          });
+          touch(id, who);
+        },
+        release(){ text.unobserve(handler); }
+      };
+    },
+    peers(){
+      const out = [];
+      awareness.getStates().forEach((s, clientId) => {
+        if (clientId === awareness.clientID) return;
+        if (s && s.user) out.push(s.user);
+      });
+      return out;
+    },
+    onPeers(cb){ peerSubs.push(cb); },
+    setPresence(noteId){
+      awareness.setLocalStateField("user", { name: me.name, color: me.color, note: noteId || null });
+    },
+    connected(){ return !!(provider.connected && provider.room); }
+  };
+}
+
+/* ── 화면 그리기 ─────────────────────────────────────── */
+
+let repo = createLocalStore(room);
+let session = null;
+
+function currentNote(){ return state.notes.find((n) => n.id === state.currentId) || null; }
+function peersOnNote(id){ return state.peers.filter((p) => p && p.note === id); }
+
+function visibleNotes(){
+  if (!state.filter) return state.notes;
+  const q = state.filter.toLowerCase();
+  return state.notes.filter((n) =>
+    deriveTitle(n.body).toLowerCase().includes(q) || (n.body || "").toLowerCase().includes(q));
+}
+
+function renderList(){
+  const items = visibleNotes();
+  noteList.textContent = "";
+  if (!items.length){
+    const li = document.createElement("li");
+    li.className = "empty-list";
+    li.textContent = state.filter ? "검색 결과가 없습니다." : "노트가 없습니다.";
+    noteList.appendChild(li);
+    return;
+  }
+  for (const note of items){
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.className = "item";
+    btn.type = "button";
+    btn.setAttribute("aria-current", note.id === state.currentId ? "true" : "false");
+    btn.onclick = () => { selectNote(note.id); closeList(); };
+
+    const top = document.createElement("div");
+    top.className = "item-top";
+    const title = document.createElement("span");
+    title.className = "item-title";
+    title.textContent = deriveTitle(note.body);
+    const time = document.createElement("span");
+    time.className = "item-time";
+    time.textContent = relTime(note.updatedAt);
+    top.append(title, time);
+
+    const snip = document.createElement("div");
+    snip.className = "item-snip";
+    snip.textContent = snippetOf(note.body);
+    btn.append(top, snip);
+
+    const here = peersOnNote(note.id);
+    if (here.length){
+      const hereEl = document.createElement("span");
+      hereEl.className = "item-here";
+      hereEl.textContent = here.map((p) => p.name || "익명").join(", ") + " 편집 중";
+      btn.appendChild(hereEl);
+    }
+    li.appendChild(btn);
+    noteList.appendChild(li);
+  }
+}
+
+function renderMeta(){
+  const note = currentNote();
+  if (!note){ docMeta.textContent = ""; return; }
+  const parts = [];
+  if (note.updatedAt) parts.push(relTime(note.updatedAt) + " 수정");
+  if (note.updatedBy) parts.push(note.updatedBy);
+  docMeta.textContent = parts.join(" · ");
+}
+
+function renderPreviewPane(){
+  preview.innerHTML = renderMarkdown(editor.value);
+  $("charCount").textContent = editor.value.length.toLocaleString("ko-KR") + "자";
+  $("lineCount").textContent = editor.value.split("\n").length.toLocaleString("ko-KR") + "줄";
+}
+
+function renderPeople(){
+  peopleEl.textContent = "";
+  state.peers.slice(0, 6).forEach((p) => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.style.background = p.color || "#9AA8A2";
+    chip.textContent = initials(p.name);
+    chip.title = (p.name || "익명") + (p.note === state.currentId ? " · 이 노트" : "");
+    chip.setAttribute("data-here", String(p.note === state.currentId));
+    peopleEl.appendChild(chip);
+  });
+  if (state.peers.length > 6){
+    const more = document.createElement("span");
+    more.className = "more";
+    more.textContent = "+" + (state.peers.length - 6);
+    peopleEl.appendChild(more);
+  }
+}
+
+function renderStatus(){
+  if (state.mode !== "shared"){
+    setSync("local", "이 브라우저에만 저장됨");
+    return;
+  }
+  const n = state.peers.length;
+  if (n > 0) setSync("saved", "동기화 중 · 나 포함 " + (n + 1) + "명");
+  else if (repo.connected()) setSync("saving", "혼자 편집 중 · 링크를 공유하세요");
+  else setSync("local", "연결 대기 중 · 변경 내용은 보관됩니다");
+}
+
+function renderBlankState(){
+  const has = state.notes.length > 0;
+  blank.hidden = has;
+  panes.hidden = !has;
+  document.querySelector(".doc-head").style.display = has ? "" : "none";
+}
+
+/* ── 노트 선택과 편집 ────────────────────────────────── */
+
+function selectNote(id, opts){
+  if (state.currentId === id && !(opts && opts.force)) return;
+  if (session){ session.release(); session = null; }
+  state.currentId = id;
+  session = repo.bind(id, onRemoteText);
+  const text = session ? session.text() : "";
+  editor.value = text;
+  renderPreviewPane();
+  renderMeta();
+  renderList();
+  store("mdp-last-" + room, id || "");
+  repo.setPresence(id);
+  editor.scrollTop = 0;
+}
+
+function onRemoteText(next){
+  if (editor.value === next) return;
+  const cur = editor.value;
+  const start = editor.selectionStart, end = editor.selectionEnd;
+  const min = Math.min(cur.length, next.length);
+  let head = 0;
+  while (head < min && cur[head] === next[head]) head++;
+  let tail = 0;
+  while (tail < min - head && cur[cur.length - 1 - tail] === next[next.length - 1 - tail]) tail++;
+  const delta = next.length - cur.length;
+  const map = (pos) => pos <= head ? pos
+    : (pos >= cur.length - tail ? Math.max(head, pos + delta) : Math.min(pos, next.length));
+  editor.value = next;
+  if (document.activeElement === editor){
+    try{ editor.setSelectionRange(map(start), map(end)); }catch(e){}
+  }
+  renderPreviewPane();
+}
+
+function applyNotes(){
+  state.notes = repo.notes();
+  if (!state.currentId || !currentNote()){
+    const last = stored("mdp-last-" + room, "");
+    const target = state.notes.some((n) => n.id === last) ? last
+      : (state.notes[0] ? state.notes[0].id : null);
+    state.currentId = null;
+    if (session){ session.release(); session = null; }
+    if (target) selectNote(target, { force:true });
+    else { editor.value = ""; renderPreviewPane(); }
+  } else if (!session){
+    selectNote(state.currentId, { force:true });
+  }
+  renderList();
+  renderMeta();
+  renderBlankState();
+  renderStatus();
+}
+
+function createNote(){
+  const id = newId();
+  repo.create(id, "# 새 노트\n\n", me.name || "익명");
+  applyNotes();
+  selectNote(id, { force:true });
+  renderBlankState();
+  editor.focus();
+  editor.setSelectionRange(editor.value.length, editor.value.length);
+}
+
+function deleteCurrent(){
+  const note = currentNote();
+  if (!note) return;
+  if (!window.confirm('"' + deriveTitle(note.body) + '" 노트를 삭제할까요? 같이 보는 모두에게서 사라집니다.')) return;
+  if (session){ session.release(); session = null; }
+  state.currentId = null;
+  repo.remove(note.id);
+  applyNotes();
+}
+
+function setView(view){
+  app.setAttribute("data-view", view);
+  document.querySelectorAll("#viewSeg button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.view === view));
+  });
+  store("mdp-view", view);
+}
+function openList(){ app.setAttribute("data-list", "open"); $("listToggle").setAttribute("aria-expanded", "true"); }
+function closeList(){ app.setAttribute("data-list", "closed"); $("listToggle").setAttribute("aria-expanded", "false"); }
+
+/* ── 이벤트 연결 ─────────────────────────────────────── */
+
+editor.addEventListener("input", () => {
+  renderPreviewPane();
+  if (session) session.write(editor.value, me.name || "익명");
+});
+editor.addEventListener("keydown", (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "s"){ e.preventDefault(); }
+  if (e.key === "Tab"){
+    e.preventDefault();
+    const s = editor.selectionStart, en = editor.selectionEnd;
+    editor.value = editor.value.slice(0, s) + "  " + editor.value.slice(en);
+    editor.setSelectionRange(s + 2, s + 2);
+    renderPreviewPane();
+    if (session) session.write(editor.value, me.name || "익명");
+  }
+});
+editor.addEventListener("focus", () => repo.setPresence(state.currentId));
+
+$("newNote").onclick = createNote;
+$("blankNew").onclick = createNote;
+$("deleteNote").onclick = deleteCurrent;
+$("listToggle").onclick = () => { app.getAttribute("data-list") === "open" ? closeList() : openList(); };
+$("scrim").onclick = closeList;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeList(); });
+document.querySelectorAll("#viewSeg button").forEach((b) => { b.onclick = () => setView(b.dataset.view); });
+
+$("search").addEventListener("input", (e) => { state.filter = e.target.value.trim(); renderList(); });
+
+$("nameInput").addEventListener("input", (e) => {
+  me.name = e.target.value.trim();
+  store("mdp-name", me.name);
+  repo.setPresence(state.currentId);
+});
+
+$("shareBtn").onclick = () => {
+  const url = location.href;
+  showNotice("이 링크를 가진 사람은 누구나 이 노트를 읽고 쓸 수 있습니다.", "복사", async () => {
+    try{
+      await navigator.clipboard.writeText(url);
+      noticeAction.textContent = "복사됨";
+      setTimeout(() => { noticeAction.textContent = "복사"; }, 1800);
+    }catch(e){
+      shareLink.select();
+      noticeAction.textContent = "직접 복사하세요";
+    }
+  }, { link:url, warn:true });
+  shareLink.focus();
+  shareLink.select();
+};
+
+setInterval(() => { renderList(); renderMeta(); renderStatus(); }, 30000);
+
+let savedView = stored("mdp-view", "split");
+if (window.matchMedia("(max-width:880px)").matches && savedView === "split") savedView = "edit";
+setView(savedView);
+renderPreviewPane();
+
+/* ── 시작: 공유 저장소를 붙이고, 안 되면 로컬로 ────── */
+
+repo.onChange(applyNotes);
+applyNotes();
+setSync("idle", "연결 중…");
+
+(async () => {
+  let shared;
+  try{
+    shared = await createSharedStore(room, roomKey);
+  }catch(err){
+    console.error(err);
+    state.mode = "local";
+    applyNotes();
+    showNotice("실시간 동기화를 시작하지 못했습니다. 지금 쓰는 내용은 이 브라우저에만 저장됩니다.", null, null, { warn:true });
+    return;
+  }
+
+  repo = shared;
+  state.mode = "shared";
+  repo.onChange(applyNotes);
+  repo.onPeers(() => { state.peers = repo.peers(); renderPeople(); renderList(); renderStatus(); });
+  repo.setPresence(state.currentId);
+
+  try{ await repo.ready; }catch(e){}
+
+  // 저장된 문서가 도착한 뒤, 그래도 비어 있으면 안내 노트를 만든다.
+  setTimeout(() => {
+    if (repo.seedWelcome) repo.seedWelcome(WELCOME);
+    applyNotes();
+  }, 2500);
+
+  applyNotes();
+  renderStatus();
+  window.addEventListener("beforeunload", () => { if (session) session.release(); });
+})();
+</script>
+</body>
+</html>
